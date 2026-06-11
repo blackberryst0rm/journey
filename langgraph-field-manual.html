@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangGraph Field Manual — PagerDuty Build</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f14;
+    --panel:#11161d;
+    --panel2:#161d26;
+    --line:#222c38;
+    --ink:#e6edf3;
+    --ink-dim:#9aa7b4;
+    --ink-faint:#6b7886;
+    /* category colors */
+    --state:#f0b429;     /* memory */
+    --node:#3fb950;      /* do work */
+    --edge:#58a6ff;      /* routing */
+    --control:#bc8cff;   /* control / safety */
+    --shortcut:#ff7ac6;  /* the fast path */
+    --pd:#06ac38;        /* pagerduty green */
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(6,172,56,.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(88,166,255,.06), transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Hanken Grotesk',sans-serif;
+    line-height:1.55;
+    padding:0 0 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* ---- header ---- */
+  header{
+    border-bottom:1px solid var(--line);
+    padding:42px 0 26px;
+    margin-bottom:30px;
+    background:linear-gradient(180deg, rgba(255,255,255,.02), transparent);
+  }
+  .kicker{
+    font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--pd);margin-bottom:14px;display:flex;align-items:center;gap:10px;
+  }
+  .kicker::before{content:"";width:26px;height:2px;background:var(--pd)}
+  h1{
+    font-family:'Bricolage Grotesque',sans-serif;font-weight:800;
+    font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.02;letter-spacing:-.02em;
+  }
+  h1 .g{color:var(--node)}
+  .sub{color:var(--ink-dim);max-width:620px;margin-top:14px;font-size:1.02rem}
+  .tag{
+    display:inline-block;font-family:var(--mono);font-size:11px;
+    border:1px solid var(--line);border-radius:6px;padding:4px 9px;color:var(--ink-dim);
+    margin-top:18px;
+  }
+
+  section{margin-bottom:54px;scroll-margin-top:20px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+  .sec-num{font-family:var(--mono);color:var(--ink-faint);font-size:13px}
+  h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.5rem;letter-spacing:-.01em}
+  .sec-note{color:var(--ink-dim);font-size:.92rem;max-width:560px}
+
+  /* ---- framework decision strip ---- */
+  .frame-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .frame{
+    border:1px solid var(--line);border-radius:12px;padding:18px;background:var(--panel);
+    position:relative;overflow:hidden;
+  }
+  .frame .bar{position:absolute;top:0;left:0;width:100%;height:3px}
+  .frame h3{font-family:var(--mono);font-size:1rem;margin-bottom:4px}
+  .frame .lvl{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px}
+  .frame p{font-size:.88rem;color:var(--ink-dim);margin-bottom:12px}
+  .frame .use{font-size:.84rem;border-top:1px dashed var(--line);padding-top:11px}
+  .frame .use b{color:var(--ink);font-weight:600}
+  .frame.lc .bar{background:var(--edge)} .frame.lc h3{color:var(--edge)}
+  .frame.lg .bar{background:var(--node)} .frame.lg h3{color:var(--node)}
+  .frame.da .bar{background:var(--control)} .frame.da h3{color:var(--control)}
+  .frame.lg{box-shadow:0 0 0 1px var(--node), 0 14px 40px -22px rgba(63,185,80,.5)}
+  .youhere{
+    position:absolute;top:12px;right:12px;font-family:var(--mono);font-size:9.5px;
+    background:var(--node);color:#04210c;font-weight:700;padding:3px 7px;border-radius:5px;letter-spacing:.05em;
+  }
+
+  /* ---- flowchart ---- */
+  .flow{display:flex;flex-direction:column;align-items:center;gap:0}
+  .step{
+    width:100%;max-width:680px;border:1px solid var(--line);border-radius:12px;
+    background:var(--panel);padding:16px 18px;position:relative;
+    display:grid;grid-template-columns:46px 1fr;gap:16px;align-items:start;
+  }
+  .step .n{
+    font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:1.5rem;
+    color:var(--node);width:46px;height:46px;border:1px solid var(--node);border-radius:10px;
+    display:flex;align-items:center;justify-content:center;background:rgba(63,185,80,.07);
+  }
+  .step h4{font-size:1.05rem;margin-bottom:3px}
+  .step p{font-size:.88rem;color:var(--ink-dim)}
+  .step .pd-map{
+    margin-top:9px;font-size:.82rem;font-family:var(--mono);color:var(--pd);
+    background:rgba(6,172,56,.08);border-left:2px solid var(--pd);padding:6px 10px;border-radius:0 6px 6px 0;
+  }
+  .connector{width:2px;height:22px;background:linear-gradient(var(--node),var(--line))}
+  .arrowhead{color:var(--node);font-size:14px;height:14px;line-height:1}
+
+  /* ---- mental model diagram ---- */
+  .mm{
+    border:1px solid var(--line);border-radius:14px;background:var(--panel);
+    padding:26px;display:grid;grid-template-columns:1fr;gap:20px;
+  }
+  .mm-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center}
+  .mm-node{
+    border:1px solid var(--node);color:var(--node);background:rgba(63,185,80,.06);
+    border-radius:10px;padding:12px 16px;font-family:var(--mono);font-size:.85rem;min-width:120px;text-align:center;
+  }
+  .mm-arrow{color:var(--edge);font-family:var(--mono);font-size:.8rem;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .mm-arrow span{font-size:1.3rem;line-height:1}
+  .mm-state{
+    border:1px dashed var(--state);color:var(--state);border-radius:10px;
+    padding:14px;text-align:center;font-family:var(--mono);font-size:.82rem;
+    background:rgba(240,180,41,.05);
+  }
+  .mm-cap{text-align:center;color:var(--ink-dim);font-size:.86rem;margin-top:4px}
+
+  /* ---- reference cards ---- */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;font-family:var(--mono);font-size:11.5px}
+  .legend span{display:flex;align-items:center;gap:7px;color:var(--ink-dim)}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    padding:16px 17px;border-left-width:4px;position:relative;
+  }
+  .card .ttl{font-family:var(--mono);font-size:.95rem;font-weight:700;margin-bottom:2px;word-break:break-word}
+  .card .cat{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:11px}
+  .card .field{font-size:.85rem;margin-bottom:8px;display:grid;grid-template-columns:64px 1fr;gap:10px}
+  .card .field .lab{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);padding-top:2px}
+  .card .field .val{color:var(--ink-dim)}
+  .card .field .val code{font-family:var(--mono);font-size:.82em;color:var(--ink);background:var(--panel2);padding:1px 5px;border-radius:4px}
+  .card.c-state{border-left-color:var(--state)} .card.c-state .ttl{color:var(--state)}
+  .card.c-node{border-left-color:var(--node)} .card.c-node .ttl{color:var(--node)}
+  .card.c-edge{border-left-color:var(--edge)} .card.c-edge .ttl{color:var(--edge)}
+  .card.c-control{border-left-color:var(--control)} .card.c-control .ttl{color:var(--control)}
+  .card.c-shortcut{border-left-color:var(--shortcut);box-shadow:0 0 0 1px rgba(255,122,198,.25)} .card.c-shortcut .ttl{color:var(--shortcut)}
+  .now{position:absolute;top:13px;right:13px;font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.05em}
+  .now.need{background:rgba(63,185,80,.16);color:var(--node);border:1px solid rgba(63,185,80,.4)}
+  .now.later{background:rgba(255,255,255,.04);color:var(--ink-faint);border:1px solid var(--line)}
+
+  /* ---- error table ---- */
+  .etable{width:100%;border-collapse:collapse;font-size:.85rem;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .etable th{
+    text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint);padding:11px 13px;background:var(--panel2);border-bottom:1px solid var(--line);
+  }
+  .etable td{padding:11px 13px;border-bottom:1px solid var(--line);color:var(--ink-dim);vertical-align:top}
+  .etable tr:last-child td{border-bottom:none}
+  .etable td:first-child{color:var(--ink);font-weight:600}
+  .etable code{font-family:var(--mono);font-size:.85em;color:var(--control);background:var(--panel2);padding:1px 5px;border-radius:4px}
+
+  /* ---- MVP callout ---- */
+  .callout{
+    border:1px solid var(--shortcut);border-radius:14px;background:linear-gradient(180deg,rgba(255,122,198,.07),var(--panel));
+    padding:24px 26px;
+  }
+  .callout h3{font-family:var(--mono);color:var(--shortcut);font-size:1.05rem;margin-bottom:12px}
+  .callout p{color:var(--ink-dim);font-size:.92rem;margin-bottom:12px}
+  .callout ul{list-style:none;margin:10px 0}
+  .callout li{font-size:.9rem;padding:5px 0 5px 24px;position:relative;color:var(--ink)}
+  .callout li::before{content:"→";position:absolute;left:0;color:var(--shortcut);font-family:var(--mono)}
+  pre{
+    background:#0a0d11;border:1px solid var(--line);border-radius:10px;padding:15px 16px;
+    overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.6;margin-top:14px;color:#c9d4df;
+  }
+  pre .k{color:var(--control)} pre .s{color:var(--node)} pre .c{color:var(--ink-faint)} pre .f{color:var(--state)}
+
+  /* ---- mini nav ---- */
+  nav{
+    position:sticky;top:0;z-index:50;background:rgba(11,15,20,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);padding:11px 0;margin-bottom:0;
+  }
+  nav .wrap{display:flex;gap:7px;flex-wrap:wrap}
+  nav a{
+    font-family:var(--mono);font-size:11px;color:var(--ink-dim);text-decoration:none;
+    border:1px solid var(--line);padding:5px 10px;border-radius:7px;transition:.15s;white-space:nowrap;
+  }
+  nav a:hover{color:var(--ink);border-color:var(--node);background:rgba(63,185,80,.06)}
+
+  footer{border-top:1px solid var(--line);padding-top:22px;color:var(--ink-faint);font-size:.8rem;font-family:var(--mono)}
+  footer a{color:var(--edge)}
+
+  @media(max-width:720px){
+    .frame-grid{grid-template-columns:1fr}
+    .cards{grid-template-columns:1fr}
+    .step{grid-template-columns:38px 1fr;gap:12px}
+    .step .n{width:38px;height:38px;font-size:1.2rem}
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a href="#frame">0 · pick the layer</a>
+  <a href="#model">1 · mental model</a>
+  <a href="#steps">2 · the 5 steps</a>
+  <a href="#parts">3 · parts glossary</a>
+  <a href="#errors">4 · error map</a>
+  <a href="#mvp">5 · your MVP</a>
+</div></nav>
+
+<header><div class="wrap">
+  <div class="kicker">Field Manual · build aid</div>
+  <h1>Building a <span class="g">LangGraph</span> agent</h1>
+  <div class="sub">A keep it open reference. Each part says <b>what it is</b>, <b>what it does</b>, and <b>what it needs</b>  quick reference guide</div>
+  <div class="tag">project: PagerDuty CRUD · LLM: Claude · loop: ReAct · tool: FastAPI CRUD</div>
+</div></header>
+
+<div class="wrap">
+
+<!-- ===== 0 FRAMEWORK ===== -->
+<section id="frame">
+  <div class="sec-head"><span class="sec-num">00</span><h2>First: are you even in the right layer?</h2></div>
+  <p class="sec-note" style="margin-bottom:20px">All three are LangChain products and stack on each other. Here's the map.</p>
+  <div class="frame-grid">
+    <div class="frame lc">
+      <div class="bar"></div>
+      <h3>LangChain</h3>
+      <div class="lvl">High level · easiest</div>
+      <p>Prebuilt building blocks. Wire a model + a connector and go. Least control.</p>
+      <div class="use"><b>Use for:</b> a simple agent with a prebuilt connector to one thing.</div>
+    </div>
+    <div class="frame lg">
+      <div class="youhere">◀ YOU ARE HERE</div>
+      <div class="bar"></div>
+      <h3>LangGraph</h3>
+      <div class="lvl">Low level · the runtime</div>
+      <p>You control every step: state, nodes, routing, memory, human-in-the-loop. It's a runtime, not an app framework.</p>
+      <div class="use"><b>Use for:</b> your CRUD MVP — “create 10 teams w/ schedules + escalation policies.”</div>
+    </div>
+    <div class="frame da">
+      <div class="bar"></div>
+      <h3>Deep Agents</h3>
+      <div class="lvl">Harness · Batteries included</div>
+      <p>Sits on top of LangGraph. Built-in planning (ToDo tool), subagents in parallel, persistent memory, context window management.</p>
+      <div class="use"><b>Use for:</b> the future full auto-provisioner (big JSON, parallel ops, progress tracking).</div>
+    </div>
+  </div>
+  <p class="sec-note" style="margin-top:16px;font-size:.85rem">Learning LangGraph now is the foundation — Deep Agents is built on it, so nothing is wasted when you scale up.</p>
+</section>
+
+<!-- ===== 1 MENTAL MODEL ===== -->
+<section id="model">
+  <div class="sec-head"><span class="sec-num">01</span><h2>The whole mental model, in one picture</h2></div>
+  <p class="sec-note" style="margin-bottom:20px">Only three concepts. Everything else is a variation on these.</p>
+  <div class="mm">
+    <div class="mm-row">
+      <div class="mm-node">START</div>
+      <div class="mm-arrow"><span>→</span>edge</div>
+      <div class="mm-node">a node</div>
+      <div class="mm-arrow"><span>→</span>edge</div>
+      <div class="mm-node">another node</div>
+      <div class="mm-arrow"><span>→</span>edge</div>
+      <div class="mm-node">END</div>
+    </div>
+    <div class="mm-state">
+      ▲ &nbsp;STATE — the shared notebook every node reads from &amp; writes to&nbsp; ▲
+    </div>
+    <div class="mm-cap">
+      <b style="color:var(--node)">Nodes</b> do the work (a Python function).
+      <b style="color:var(--edge)">Edges</b> decide what runs next.
+      <b style="color:var(--state)">State</b> is the memory passed along the whole way.
+    </div>
+  </div>
+</section>
+
+<!-- ===== 2 THE 5 STEPS ===== -->
+<section id="steps">
+  <div class="sec-head"><span class="sec-num">02</span><h2>The literal build process — same 5 steps every time</h2></div>
+  <p class="sec-note" style="margin-bottom:24px">This is the “Thinking in LangGraph” sequence. Do them in order. Green boxes = your PagerDuty version.</p>
+  <div class="flow">
+
+    <div class="step">
+      <div class="n">1</div>
+      <div>
+        <h4>Map the workflow as discrete steps</h4>
+        <p>List the distinct things that happen. Each one becomes a <b>node</b>. Sketch how they connect.</p>
+        <div class="pd-map">PD: read request → decide what to create → call CRUD tool → confirm/report</div>
+      </div>
+    </div>
+    <div class="connector"></div><div class="arrowhead">▼</div>
+
+    <div class="step">
+      <div class="n">2</div>
+      <div>
+        <h4>Identify what each step needs</h4>
+        <p>Tag each node by type: <b>LLM</b> (reason/decide), <b>Data</b> (fetch), <b>Action</b> (do something external), <b>User input</b> (need a human).</p>
+        <div class="pd-map">PD: “decide” = LLM step · “create team” = Action step (your FastAPI tool)</div>
+      </div>
+    </div>
+    <div class="connector"></div><div class="arrowhead">▼</div>
+
+    <div class="step">
+      <div class="n">3</div>
+      <div>
+        <h4>Design your state</h4>
+        <p>The shared notebook. Rule: <b>store raw data, not formatted text.</b> Ask “does this need to persist across steps?” → yes = it goes in state.</p>
+        <div class="pd-map">PD state: the request, what's been created so far, tool results, errors</div>
+      </div>
+    </div>
+    <div class="connector"></div><div class="arrowhead">▼</div>
+
+    <div class="step">
+      <div class="n">4</div>
+      <div>
+        <h4>Build your nodes</h4>
+        <p>Each node is a plain Python function: <code style="font-family:var(--mono);font-size:.82em;color:var(--node)">takes state → returns updates to state</code>. Decide error handling per node here.</p>
+        <div class="pd-map">PD: one node calls your CRUD tool; another decides if all 10 teams are done</div>
+      </div>
+    </div>
+    <div class="connector"></div><div class="arrowhead">▼</div>
+
+    <div class="step">
+      <div class="n">5</div>
+      <div>
+        <h4>Wire it together &amp; compile</h4>
+        <p>Connect nodes with edges, then <code style="font-family:var(--mono);font-size:.82em;color:var(--node)">.compile()</code>. Add a <b>checkpointer</b> if you want memory or human-in-the-loop.</p>
+        <div class="pd-map">PD: compile, run, watch it loop until all teams exist</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===== 3 PARTS GLOSSARY ===== -->
+<section id="parts">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Parts glossary : what each thing is, does, needs</h2></div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--state)"></i>State / memory</span>
+    <span><i class="dot" style="background:var(--node)"></i>Nodes / work</span>
+    <span><i class="dot" style="background:var(--edge)"></i>Edges / routing</span>
+    <span><i class="dot" style="background:var(--control)"></i>Control / safety</span>
+    <span><i class="dot" style="background:var(--shortcut)"></i>The shortcut</span>
+  </div>
+  <div class="cards">
+
+    <div class="card c-shortcut">
+      <div class="now need">START HERE</div>
+      <div class="ttl">create_react_agent()</div>
+      <div class="cat">the shortcut · langgraph.prebuilt</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A prebuilt ReAct agent. Builds the whole model⇄tool loop for you.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Loops: call Claude → run tools → repeat until no more tool calls.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">A model string, a list of <code>@tool</code>s, optional <code>prompt</code>.</span></div>
+    </div>
+
+    <div class="card c-node">
+      <div class="now need">need now</div>
+      <div class="ttl">@tool</div>
+      <div class="cat">nodes · langchain_core.tools</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A Python function the agent is allowed to call.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Exposes your FastAPI CRUD calls to Claude.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">Type hints + a clear docstring (that's the “when to use me” prompt).</span></div>
+    </div>
+
+    <div class="card c-state">
+      <div class="now need">need now</div>
+      <div class="ttl">State (TypedDict)</div>
+      <div class="cat">memory</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A typed dict defining the shared notebook's shape.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Holds raw data passed between nodes (request, results, errors).</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val"><code>from typing import TypedDict</code>. Store raw data, not prompts.</span></div>
+    </div>
+
+    <div class="card c-node">
+      <div class="now later">when you scale</div>
+      <div class="ttl">Node</div>
+      <div class="cat">work · used by StateGraph</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A function: <code>def f(state) -&gt; updates</code>.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">One specific job, then writes its result back to state.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">Added via <code>workflow.add_node("name", fn)</code>.</span></div>
+    </div>
+
+    <div class="card c-control">
+      <div class="now later">when you scale</div>
+      <div class="ttl">StateGraph</div>
+      <div class="cat">control · the manual path</div>
+      <div class="field"><span class="lab">Is</span><span class="val">The graph builder you use instead of the shortcut for full control.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Holds your nodes + edges; you <code>.compile()</code> it to run.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">A State type. Switch to this when you need parallel/branching/custom routing.</span></div>
+    </div>
+
+    <div class="card c-edge">
+      <div class="now later">when you scale</div>
+      <div class="ttl">Edges (normal + conditional)</div>
+      <div class="cat">routing</div>
+      <div class="field"><span class="lab">Is</span><span class="val">The arrows. Normal = always go here; conditional = decide at runtime.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Controls which node runs next.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val"><code>START</code> and <code>END</code> mark the entry/exit of the graph.</span></div>
+    </div>
+
+    <div class="card c-edge">
+      <div class="now later">when you scale</div>
+      <div class="ttl">Command(update=…, goto=…)</div>
+      <div class="cat">routing · langgraph.types</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A return value that updates state AND picks the next node in one move.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Lets a node route itself (e.g. on tool error, loop back to the agent).</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val"><code>from langgraph.types import Command</code>.</span></div>
+    </div>
+
+    <div class="card c-control">
+      <div class="now later">for memory / HITL</div>
+      <div class="ttl">checkpointer (MemorySaver)</div>
+      <div class="cat">control · persistence</div>
+      <div class="field"><span class="lab">Is</span><span class="val">Saves a snapshot of state at every step, grouped by <code>thread_id</code>.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Enables memory across turns, human-in-the-loop, and resume-after-crash.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">Pass to <code>.compile(checkpointer=…)</code> + a <code>thread_id</code> at run.</span></div>
+    </div>
+
+    <div class="card c-control">
+      <div class="now later">for approvals</div>
+      <div class="ttl">interrupt()</div>
+      <div class="cat">control · human-in-the-loop</div>
+      <div class="field"><span class="lab">Is</span><span class="val">Pauses the graph and waits for a human.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Great for “confirm before deleting” or “need an account ID.”</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">A checkpointer (can't pause without somewhere to save).</span></div>
+    </div>
+
+    <div class="card c-control">
+      <div class="now later">for reliability</div>
+      <div class="ttl">RetryPolicy</div>
+      <div class="cat">control · fault tolerance</div>
+      <div class="field"><span class="lab">Is</span><span class="val">Auto re-runs a failed node based on exception type + backoff.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Handles flaky network / rate limits on your PD API calls.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val"><code>retry_policy=RetryPolicy(max_attempts=3)</code> on <code>add_node</code>.</span></div>
+    </div>
+
+    <div class="card c-control">
+      <div class="now later">langgraph ≥ 1.2</div>
+      <div class="ttl">error_handler</div>
+      <div class="cat">control · fault tolerance</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A recovery function that runs AFTER retries are exhausted.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Runs a compensation/cleanup branch instead of crashing.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val"><code>langgraph &gt;= 1.2</code>; passed to <code>add_node(error_handler=…)</code>.</span></div>
+    </div>
+
+    <div class="card c-state">
+      <div class="now later">debugging</div>
+      <div class="ttl">StateSnapshot / time travel</div>
+      <div class="cat">memory · debugging</div>
+      <div class="field"><span class="lab">Is</span><span class="val">A saved checkpoint you can inspect or replay from.</span></div>
+      <div class="field"><span class="lab">Does</span><span class="val">Lets you see exactly what state each node received. Huge for debugging.</span></div>
+      <div class="field"><span class="lab">Needs</span><span class="val">A checkpointer enabled.</span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ===== 4 ERROR MAP ===== -->
+<section id="errors">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Error handling — pick the right strategy by error type</h2></div>
+  <p class="sec-note" style="margin-bottom:18px">When something fails, match it to a row. Don't catch what you can't handle.</p>
+  <table class="etable">
+    <tr><th>Error type</th><th>Who fixes it</th><th>Strategy</th><th>When</th></tr>
+    <tr><td>Transient (network, rate limit)</td><td>System (auto)</td><td><code>RetryPolicy</code></td><td>Usually resolves on retry</td></tr>
+    <tr><td>LLM-recoverable (tool/parse fail)</td><td>The LLM</td><td>Store error in state, loop back</td><td>Claude can see it &amp; adjust</td></tr>
+    <tr><td>User-fixable (missing info)</td><td>Human</td><td><code>interrupt()</code></td><td>Need input to proceed</td></tr>
+    <tr><td>Recoverable after retries</td><td>Developer</td><td><code>error_handler</code></td><td>Run compensation branch</td></tr>
+    <tr><td>Unexpected / unknown</td><td>Developer</td><td>Let it bubble up (<code>raise</code>)</td><td>Needs debugging</td></tr>
+  </table>
+</section>
+
+<!-- ===== 5 YOUR MVP ===== -->
+<section id="mvp">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Your MVP, specifically</h2></div>
+  <div class="callout">
+    <h3>// don't over-engineer this one</h3>
+    <p>“Create 10 teams with schedules + escalation policies” is a <b>tool-calling loop</b>, not a complex branching workflow. The shortcut (<code style="font-family:var(--mono);color:var(--shortcut)">create_react_agent</code>) gives you the whole ReAct loop with Claude already — you likely don't need to hand-build a StateGraph yet.</p>
+    <ul>
+      <li>Wrap each PagerDuty CRUD call as a <code style="font-family:var(--mono);color:var(--ink)">@tool</code> with a sharp docstring.</li>
+      <li>Hand the tools to <code style="font-family:var(--mono);color:var(--ink)">create_react_agent("anthropic:claude-...", tools=[...])</code>.</li>
+      <li>Add a <code style="font-family:var(--mono);color:var(--ink)">checkpointer</code> only when you want it to remember progress or pause for approval.</li>
+      <li>Reach for the full <b>StateGraph</b> (steps 1–5 above) when you need parallel creation, branching, or custom retry/recovery — i.e. heading toward the Deep Agents provisioner.</li>
+    </ul>
+    <pre><span class="c"># the whole MVP shape — fill in your real CRUD tools</span>
+<span class="k">from</span> langgraph.prebuilt <span class="k">import</span> create_react_agent
+<span class="k">from</span> langchain_core.tools <span class="k">import</span> tool
+
+<span class="f">@tool</span>
+<span class="k">def</span> create_team(name: str) -> dict:
+    <span class="s">"""Create a PagerDuty team. Use when a new team is requested."""</span>
+    <span class="k">return</span> pd_api.post(<span class="s">"/teams"</span>, {<span class="s">"name"</span>: name})
+
+<span class="c"># ...create_schedule, create_escalation_policy, etc.</span>
+
+agent = create_react_agent(
+    <span class="s">"anthropic:claude-sonnet-4-5"</span>,
+    tools=[create_team, create_schedule, create_escalation_policy],
+    prompt=<span class="s">"You provision PagerDuty. Confirm before deleting anything."</span>,
+)
+agent.invoke({<span class="s">"messages"</span>: [{<span class="s">"role"</span>:<span class="s">"user"</span>,<span class="s">"content"</span>:<span class="s">"Create 10 on-call teams..."</span>}]})</pre>
+  </div>
+</section>
+
+<footer>
+  Source: docs.langchain.com / oss / python / langgraph · “Thinking in LangGraph”, Fault tolerance, Persistence.<br>
+  Verify version-gated bits (<code style="color:var(--control)">error_handler</code>, per-node timeouts need langgraph ≥ 1.2) against the live docs as you build.
+</footer>
+
+</div>
+</body>
+</html>
